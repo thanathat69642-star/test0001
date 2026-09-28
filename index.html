@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="th" class="h-full bg-slate-950">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบโหวตเรียลไทม์ (Real-Time Team Voting)</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Kanit & Sarabun -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- QRCode.js Library for generating shareable QR Codes -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            kanit: ['Kanit', 'sans-serif'],
+            sarabun: ['Sarabun', 'sans-serif'],
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'glow': 'glow 2s infinite alternate',
+          },
+          keyframes: {
+            glow: {
+              '0%': { boxShadow: '0 0 15px rgba(99, 102, 241, 0.3)' },
+              '100%': { boxShadow: '0 0 25px rgba(99, 102, 241, 0.7)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Sarabun', sans-serif;
+    }
+    h1, h2, h3, h4, .font-heading {
+      font-family: 'Kanit', sans-serif;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col antialiased selection:bg-indigo-500 selection:text-white min-h-screen">
+
+  <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 shadow-lg">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Logo & Connection Status -->
+      <div class="flex items-center space-x-3">
+        <div class="p-2.5 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-xl shadow-lg shadow-indigo-500/20 text-white">
+          <i data-lucide="vote" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent font-heading">
+            LiveVote Realtime
+          </h1>
+          <p class="text-xs text-slate-400 flex items-center gap-1.5">
+            <span id="connection-status-dot" class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            <span id="connection-status-text">กำลังเชื่อมต่อฐานข้อมูล...</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Route Switcher & Share QR Button -->
+      <div class="flex items-center gap-2">
+        <!-- Hash Navigation Tabs -->
+        <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
+          <a href="#student" id="tab-student" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 bg-indigo-600 text-white shadow-md">
+            <i data-lucide="smartphone" class="w-4 h-4"></i>
+            <span>📱 จอนักเรียน (#student)</span>
+          </a>
+          <a href="#teacher" id="tab-teacher" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all duration-200">
+            <i data-lucide="presentation" class="w-4 h-4"></i>
+            <span>📊 จอครู (#teacher)</span>
+          </a>
+        </div>
+
+        <!-- Share QR Modal Button -->
+        <button onclick="openQRModal()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-xl transition-colors" title="แชร์ QR Code ให้นักเรียน">
+          <i data-lucide="qr-code" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
+
+    <!-- ========================================== -->
+    <!-- VIEW 1: STUDENT VOTING PAGE (#student) -->
+    <!-- ========================================== -->
+    <section id="student-view" class="flex-1 flex flex-col justify-center items-center max-w-2xl mx-auto w-full py-4">
+      
+      <!-- Student View Header -->
+      <div class="text-center mb-8 space-y-2">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          หน้ารับโหวตนับคะแนน
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-white font-heading tracking-tight">
+          เลือกลงคะแนนให้ทีมที่คุณชื่นชอบ
+        </h2>
+        <p class="text-slate-400 text-sm sm:text-base">
+          กดเลือกทีมที่ต้องการส่งคะแนนเสียง (โหวตได้ 1 ครั้งต่ออุปกรณ์)
+        </p>
+      </div>
+
+      <div id="voted-banner" class="hidden w-full mb-6 p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 backdrop-blur-sm text-center shadow-2xl">
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 mb-2">
+          <i data-lucide="check-circle-2" class="w-7 h-7"></i>
+        </div>
+        <h3 class="text-lg font-bold text-emerald-300 font-heading">คุณได้ลงคะแนนเรียบร้อยแล้ว!</h3>
+        <p class="text-sm text-emerald-200/80 mt-1">
+          คุณเลือกโหวตให้กับ <span id="voted-team-name" class="font-bold text-emerald-300 underline underline-offset-2"></span>
+        </p>
+        <button onclick="resetLocalVoteState()" class="mt-4 inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 underline transition-colors">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          สลับกลับมาโหวตอีกครั้ง (สำหรับทดสอบ)
+        </button>
+      </div>
+
+      <div id="voting-buttons-grid" class="w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+        
+        <!-- Team 1 -->
+        <button onclick="castVote('team1')" class="team-btn group relative overflow-hidden p-5 rounded-2xl bg-slate-900 border border-rose-500/30 hover:border-rose-500 transition-all duration-200 hover:shadow-xl hover:shadow-rose-500/20 active:scale-[0.98] text-left flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-red-600 flex items-center justify-center text-white font-bold text-xl font-heading shadow-md group-hover:scale-110 transition-transform">
+              1
+            </div>
+            <div>
+              <h3 class="font-bold text-lg text-white font-heading group-hover:text-rose-400 transition-colors">ทีม 1</h3>
+              <p class="text-xs text-slate-400">Team Crimson Red</p>
+            </div>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-rose-500 group-hover:text-white transition-colors">
+            <i data-lucide="check" class="w-5 h-5"></i>
+          </div>
+        </button>
+
+        <!-- Team 2 -->
+        <button onclick="castVote('team2')" class="team-btn group relative overflow-hidden p-5 rounded-2xl bg-slate-900 border border-amber-500/30 hover:border-amber-500 transition-all duration-200 hover:shadow-xl hover:shadow-amber-500/20 active:scale-[0.98] text-left flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold text-xl font-heading shadow-md group-hover:scale-110 transition-transform">
+              2
+            </div>
+            <div>
+              <h3 class="font-bold text-lg text-white font-heading group-hover:text-amber-400 transition-colors">ทีม 2</h3>
+              <p class="text-xs text-slate-400">Team Solar Gold</p>
+            </div>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+            <i data-lucide="check" class="w-5 h-5"></i>
+          </div>
+        </button>
+
+        <!-- Team 3 -->
+        <button onclick="castVote('team3')" class="team-btn group relative overflow-hidden p-5 rounded-2xl bg-slate-900 border border-emerald-500/30 hover:border-emerald-500 transition-all duration-200 hover:shadow-xl hover:shadow-emerald-500/20 active:scale-[0.98] text-left flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-xl font-heading shadow-md group-hover:scale-110 transition-transform">
+              3
+            </div>
+            <div>
+              <h3 class="font-bold text-lg text-white font-heading group-hover:text-emerald-400 transition-colors">ทีม 3</h3>
+              <p class="text-xs text-slate-400">Team Emerald Green</p>
+            </div>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+            <i data-lucide="check" class="w-5 h-5"></i>
+          </div>
+        </button>
+
+        <!-- Team 4 -->
+        <button onclick="castVote('team4')" class="team-btn group relative overflow-hidden p-5 rounded-2xl bg-slate-900 border border-sky-500/30 hover:border-sky-500 transition-all duration-200 hover:shadow-xl hover:shadow-sky-500/20 active:scale-[0.98] text-left flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white font-bold text-xl font-heading shadow-md group-hover:scale-110 transition-transform">
+              4
+            </div>
+            <div>
+              <h3 class="font-bold text-lg text-white font-heading group-hover:text-sky-400 transition-colors">ทีม 4</h3>
+              <p class="text-xs text-slate-400">Team Sky Blue</p>
+            </div>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-sky-500 group-hover:text-white transition-colors">
+            <i data-lucide="check" class="w-5 h-5"></i>
+          </div>
+        </button>
+
+        <!-- Team 5 -->
+        <button onclick="castVote('team5')" class="team-btn sm:col-span-2 group relative overflow-hidden p-5 rounded-2xl bg-slate-900 border border-violet-500/30 hover:border-violet-500 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/20 active:scale-[0.98] text-left flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl font-heading shadow-md group-hover:scale-110 transition-transform">
+              5
+            </div>
+            <div>
+              <h3 class="font-bold text-lg text-white font-heading group-hover:text-violet-400 transition-colors">ทีม 5</h3>
+              <p class="text-xs text-slate-400">Team Violet Power</p>
+            </div>
+          </div>
+          <div class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-violet-500 group-hover:text-white transition-colors">
+            <i data-lucide="check" class="w-5 h-5"></i>
+          </div>
+        </button>
+
+      </div>
+
+    </section>
+
+
+    <!-- ========================================== -->
+    <!-- VIEW 2: TEACHER LIVE DASHBOARD (#teacher) -->
+    <!-- ========================================== -->
+    <section id="teacher-view" class="hidden flex-1 flex-col space-y-6">
+      
+      <!-- Header Controls -->
+      <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 p-5 rounded-2xl backdrop-blur-md">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
+              <span class="w-2 h-2 rounded-full bg-red-500 mr-1.5 animate-ping"></span>
+              TEACHER DASHBOARD
+            </span>
+            <span class="text-xs text-slate-400">อัปเดตแบบเรียลไทม์อัตโนมัติ</span>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white font-heading mt-1">
+            ผลการโหวตสด (Real-time Live Chart)
+          </h2>
+        </div>
+
+        <!-- Dashboard Action Buttons -->
+        <div class="flex items-center gap-3">
+          <button onclick="simulateVotes()" class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all active:scale-95 shadow-md">
+            <i data-lucide="dices" class="w-4 h-4 text-indigo-400"></i>
+            <span>สุ่มคะแนนทดสอบ (+5)</span>
+          </button>
+          <button onclick="openResetModal()" class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition-all active:scale-95 shadow-lg shadow-rose-950/40">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+            <span>รีเซ็ตคะแนนทั้งหมด</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        
+        <!-- Total Votes Metric -->
+        <div class="p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 shadow-md">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">คะแนนรวมทั้งหมด</span>
+            <div class="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg">
+              <i data-lucide="users" class="w-5 h-5"></i>
+            </div>
+          </div>
+          <div class="mt-3 flex items-baseline">
+            <span id="stat-total-votes" class="text-4xl font-black text-white font-heading">0</span>
+            <span class="ml-2 text-sm text-slate-400">เสียง</span>
+          </div>
+        </div>
+
+        <!-- Leading Team Metric -->
+        <div class="p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 shadow-md">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">ทีมที่มีคะแนนนำ</span>
+            <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+              <i data-lucide="trophy" class="w-5 h-5"></i>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center space-x-2">
+            <span id="stat-leader-name" class="text-2xl font-black text-amber-400 font-heading">ยังไม่มีคะแนน</span>
+          </div>
+        </div>
+
+        <!-- Status Card -->
+        <div class="sm:col-span-2 lg:col-span-1 p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800 shadow-md">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-xs font-semibold uppercase tracking-wider">สถานะการรับโหวต</span>
+            <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+              <i data-lucide="activity" class="w-5 h-5"></i>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center space-x-2">
+            <span class="relative flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </span>
+            <span class="text-lg font-bold text-emerald-400 font-heading">เปิดรับคะแนนตลอดเวลา</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+        <h3 class="text-lg font-bold text-white font-heading flex items-center gap-2">
+          <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-400"></i>
+          คะแนนของแต่ละทีม (เรียลไทม์)
+        </h3>
+
+        <div class="space-y-5">
+          
+          <!-- Team 1 Result Row -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <div class="flex items-center space-x-3">
+                <span class="w-7 h-7 rounded-lg bg-rose-500 text-white font-bold flex items-center justify-center text-xs font-heading">1</span>
+                <span class="font-bold text-white font-heading text-base">ทีม 1</span>
+                <span id="rank-badge-team1" class="hidden px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">👑 อันดับ 1</span>
+              </div>
+              <div class="text-right">
+                <span id="count-team1" class="text-lg font-bold text-white font-heading">0</span>
+                <span class="text-slate-400 text-xs ml-1">คะแนน (<span id="percent-team1">0</span>%)</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-950 h-5 rounded-xl overflow-hidden p-0.5 border border-slate-800">
+              <div id="bar-team1" class="h-full rounded-lg bg-gradient-to-r from-rose-600 to-rose-400 transition-all duration-500 ease-out w-0 shadow-lg shadow-rose-500/20"></div>
+            </div>
+          </div>
+
+          <!-- Team 2 Result Row -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <div class="flex items-center space-x-3">
+                <span class="w-7 h-7 rounded-lg bg-amber-500 text-white font-bold flex items-center justify-center text-xs font-heading">2</span>
+                <span class="font-bold text-white font-heading text-base">ทีม 2</span>
+                <span id="rank-badge-team2" class="hidden px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">👑 อันดับ 1</span>
+              </div>
+              <div class="text-right">
+                <span id="count-team2" class="text-lg font-bold text-white font-heading">0</span>
+                <span class="text-slate-400 text-xs ml-1">คะแนน (<span id="percent-team2">0</span>%)</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-950 h-5 rounded-xl overflow-hidden p-0.5 border border-slate-800">
+              <div id="bar-team2" class="h-full rounded-lg bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-500 ease-out w-0 shadow-lg shadow-amber-500/20"></div>
+            </div>
+          </div>
+
+          <!-- Team 3 Result Row -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <div class="flex items-center space-x-3">
+                <span class="w-7 h-7 rounded-lg bg-emerald-500 text-white font-bold flex items-center justify-center text-xs font-heading">3</span>
+                <span class="font-bold text-white font-heading text-base">ทีม 3</span>
+                <span id="rank-badge-team3" class="hidden px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">👑 อันดับ 1</span>
+              </div>
+              <div class="text-right">
+                <span id="count-team3" class="text-lg font-bold text-white font-heading">0</span>
+                <span class="text-slate-400 text-xs ml-1">คะแนน (<span id="percent-team3">0</span>%)</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-950 h-5 rounded-xl overflow-hidden p-0.5 border border-slate-800">
+              <div id="bar-team3" class="h-full rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-500 ease-out w-0 shadow-lg shadow-emerald-500/20"></div>
+            </div>
+          </div>
+
+          <!-- Team 4 Result Row -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <div class="flex items-center space-x-3">
+                <span class="w-7 h-7 rounded-lg bg-sky-500 text-white font-bold flex items-center justify-center text-xs font-heading">4</span>
+                <span class="font-bold text-white font-heading text-base">ทีม 4</span>
+                <span id="rank-badge-team4" class="hidden px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">👑 อันดับ 1</span>
+              </div>
+              <div class="text-right">
+                <span id="count-team4" class="text-lg font-bold text-white font-heading">0</span>
+                <span class="text-slate-400 text-xs ml-1">คะแนน (<span id="percent-team4">0</span>%)</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-950 h-5 rounded-xl overflow-hidden p-0.5 border border-slate-800">
+              <div id="bar-team4" class="h-full rounded-lg bg-gradient-to-r from-sky-600 to-sky-400 transition-all duration-500 ease-out w-0 shadow-lg shadow-sky-500/20"></div>
+            </div>
+          </div>
+
+          <!-- Team 5 Result Row -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <div class="flex items-center space-x-3">
+                <span class="w-7 h-7 rounded-lg bg-violet-500 text-white font-bold flex items-center justify-center text-xs font-heading">5</span>
+                <span class="font-bold text-white font-heading text-base">ทีม 5</span>
+                <span id="rank-badge-team5" class="hidden px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">👑 อันดับ 1</span>
+              </div>
+              <div class="text-right">
+                <span id="count-team5" class="text-lg font-bold text-white font-heading">0</span>
+                <span class="text-slate-400 text-xs ml-1">คะแนน (<span id="percent-team5">0</span>%)</span>
+              </div>
+            </div>
+            <div class="w-full bg-slate-950 h-5 rounded-xl overflow-hidden p-0.5 border border-slate-800">
+              <div id="bar-team5" class="h-full rounded-lg bg-gradient-to-r from-violet-600 to-violet-400 transition-all duration-500 ease-out w-0 shadow-lg shadow-violet-500/20"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Confirmation Modal for Reset -->
+  <div id="reset-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 transform scale-95 transition-transform duration-200" id="reset-modal-box">
+      <div class="w-12 h-12 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h3 class="text-xl font-bold text-white font-heading">ต้องการรีเซ็ตคะแนนทั้งหมดใช่หรือไม่?</h3>
+        <p class="text-sm text-slate-400 mt-1">
+          การดำเนินการนี้จะล้างคะแนนโหวตของทั้ง 5 ทีมกลับเป็น 0 และแสดงผลทันทีบนหน้าจอทั้งหมด
+        </p>
+      </div>
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button onclick="closeResetModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors">
+          ยกเลิก
+        </button>
+        <button onclick="confirmResetVotes()" class="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition-colors">
+          ยืนยันรีเซ็ต
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Code Share Modal -->
+  <div id="qr-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center transform scale-95 transition-transform duration-200" id="qr-modal-box">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-white font-heading">สแกนเพื่อเข้าจอนักเรียน</h3>
+        <button onclick="closeQRModal()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-4 bg-white rounded-xl inline-block shadow-inner mx-auto my-2">
+        <div id="qrcode-container"></div>
+      </div>
+
+      <p class="text-xs text-slate-400 break-all" id="student-url-text"></p>
+
+      <button onclick="copyStudentURL()" class="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-indigo-600/30">
+        <i data-lucide="copy" class="w-4 h-4"></i>
+        <span>คัดลอกลิงก์จอนักเรียน</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
+    <p>© LiveVote Realtime App - สรุปผลเรียลไทม์ด้วย Firebase</p>
+  </footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Global variables check
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'realtime-voting-app';
+    
+    const TEAMS = {
+      team1: { name: 'ทีม 1' },
+      team2: { name: 'ทีม 2' },
+      team3: { name: 'ทีม 3' },
+      team4: { name: 'ทีม 4' },
+      team5: { name: 'ทีม 5' }
+    };
+
+    let db = null;
+    let auth = null;
+    let voteDocRef = null;
+
+    let currentVoteData = {
+      team1: 0, team2: 0, team3: 0, team4: 0, team5: 0
+    };
+
+    // Firebase Initialization following mandatory rules
+    async function initFirebase() {
+      try {
+        let firebaseConfig = {};
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          firebaseConfig = JSON.parse(__firebase_config);
+        } else {
+          firebaseConfig = {
+            apiKey: "demo-key",
+            authDomain: "demo.firebaseapp.com",
+            projectId: "demo-project",
+            storageBucket: "demo.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:demo"
+          };
+        }
+
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        // RULE 3: Auth BEFORE queries
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+
+        // RULE 1: Strict paths /artifacts/{appId}/public/data/{collectionName}
+        voteDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'voteSystem', 'results');
+
+        // Listen for live updates
+        listenToVotes();
+        updateConnectionStatus(true, 'เชื่อมต่อเรียลไทม์แล้ว');
+      } catch (err) {
+        console.warn('Firebase connection fallback:', err);
+        updateConnectionStatus(true, 'โหมดจำลองในเบราว์เซอร์ (Tab Sync)');
+        setupBroadcastFallback();
+      }
+    }
+
+    function listenToVotes() {
+      if (!voteDocRef) return;
+
+      onSnapshot(voteDocRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          currentVoteData = {
+            team1: data.team1 || 0,
+            team2: data.team2 || 0,
+            team3: data.team3 || 0,
+            team4: data.team4 || 0,
+            team5: data.team5 || 0,
+          };
+        } else {
+          setDoc(voteDocRef, currentVoteData);
+        }
+        renderDashboard(currentVoteData);
+      }, (error) => {
+        console.error('Firestore Snapshot Error:', error);
+      });
+    }
+
+    // BroadcastChannel for offline fallback testing across tabs
+    let broadcastChannel;
+    function setupBroadcastFallback() {
+      if ('BroadcastChannel' in window) {
+        broadcastChannel = new BroadcastChannel('realtime_voting_channel');
+        broadcastChannel.onmessage = (event) => {
+          if (event.data) {
+            currentVoteData = event.data;
+            renderDashboard(currentVoteData);
+          }
+        };
+      }
+      renderDashboard(currentVoteData);
+    }
+
+    function syncLocalChanges() {
+      if (broadcastChannel) {
+        broadcastChannel.postMessage(currentVoteData);
+      }
+      renderDashboard(currentVoteData);
+    }
+
+    window.castVote = async function(teamKey) {
+      const hasVoted = localStorage.getItem('voted_team');
+      if (hasVoted) {
+        showToast('คุณได้ลงคะแนนโหวตไปแล้วในรอบนี้', 'warning');
+        updateVotedUI(hasVoted);
+        return;
+      }
+
+      localStorage.setItem('voted_team', teamKey);
+      updateVotedUI(teamKey);
+
+      try {
+        if (voteDocRef && auth.currentUser) {
+          await updateDoc(voteDocRef, {
+            [teamKey]: increment(1)
+          });
+        } else {
+          currentVoteData[teamKey] = (currentVoteData[teamKey] || 0) + 1;
+          syncLocalChanges();
+        }
+        showToast(`บันทึกโหวตให้ ${TEAMS[teamKey].name} สำเร็จ!`, 'success');
+      } catch (err) {
+        console.error('Cast vote error:', err);
+        currentVoteData[teamKey] = (currentVoteData[teamKey] || 0) + 1;
+        syncLocalChanges();
+        showToast(`บันทึกคะแนนเรียบร้อยแล้ว`, 'success');
+      }
+    };
+
+    // Teacher Simulation
+    window.simulateVotes = async function() {
+      const keys = Object.keys(TEAMS);
+      const randomUpdates = {};
+      
+      for (let i = 0; i < 5; i++) {
+        const randKey = keys[Math.floor(Math.random() * keys.length)];
+        randomUpdates[randKey] = (randomUpdates[randKey] || 0) + 1;
+      }
+
+      try {
+        if (voteDocRef && auth.currentUser) {
+          const updatePayload = {};
+          for (const k in randomUpdates) {
+            updatePayload[k] = increment(randomUpdates[k]);
+          }
+          await updateDoc(voteDocRef, updatePayload);
+        } else {
+          for (const k in randomUpdates) {
+            currentVoteData[k] = (currentVoteData[k] || 0) + randomUpdates[k];
+          }
+          syncLocalChanges();
+        }
+        showToast('สุ่มเพิ่มคะแนนทดสอบ +5 เสียงสำเร็จ!', 'info');
+      } catch (err) {
+        console.error('Simulate failed:', err);
+      }
+    };
+
+    // Teacher Reset Scores
+    window.confirmResetVotes = async function() {
+      const resetData = { team1: 0, team2: 0, team3: 0, team4: 0, team5: 0 };
+      try {
+        if (voteDocRef && auth.currentUser) {
+          await setDoc(voteDocRef, resetData);
+        } else {
+          currentVoteData = resetData;
+          syncLocalChanges();
+        }
+        showToast('รีเซ็ตคะแนนโหวตทั้งหมดเรียบร้อย', 'info');
+      } catch (err) {
+        console.error('Reset failed:', err);
+        currentVoteData = resetData;
+        syncLocalChanges();
+      }
+      closeResetModal();
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initFirebase();
+      checkExistingVote();
+    });
+
+  </script>
+
+  <script>
+    // Route Switcher based on URL Hash (#student or #teacher)
+    function handleRouting() {
+      const hash = window.location.hash || '#student';
+      const studentView = document.getElementById('student-view');
+      const teacherView = document.getElementById('teacher-view');
+      const tabStudent = document.getElementById('tab-student');
+      const tabTeacher = document.getElementById('tab-teacher');
+
+      if (hash === '#teacher') {
+        teacherView.classList.remove('hidden');
+        teacherView.classList.add('flex');
+        studentView.classList.add('hidden');
+        studentView.classList.remove('flex');
+
+        tabTeacher.className = "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 bg-indigo-600 text-white shadow-md";
+        tabStudent.className = "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all duration-200";
+      } else {
+        studentView.classList.remove('hidden');
+        studentView.classList.add('flex');
+        teacherView.classList.add('hidden');
+        teacherView.classList.remove('flex');
+
+        tabStudent.className = "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 bg-indigo-600 text-white shadow-md";
+        tabTeacher.className = "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all duration-200";
+      }
+    }
+
+    window.addEventListener('hashchange', handleRouting);
+    window.addEventListener('load', handleRouting);
+
+    function updateConnectionStatus(connected, text) {
+      const statusDot = document.getElementById('connection-status-dot');
+      const statusText = document.getElementById('connection-status-text');
+      if (connected) {
+        statusDot.className = "inline-block w-2 h-2 rounded-full bg-emerald-400";
+        statusText.innerText = text || "เชื่อมต่อเรียลไทม์แล้ว";
+      } else {
+        statusDot.className = "inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+        statusText.innerText = "กำลังเชื่อมต่อ...";
+      }
+    }
+
+    function renderDashboard(data) {
+      const totalVotes = (data.team1 || 0) + (data.team2 || 0) + (data.team3 || 0) + (data.team4 || 0) + (data.team5 || 0);
+      
+      const totalStat = document.getElementById('stat-total-votes');
+      if (totalStat) totalStat.innerText = totalVotes.toLocaleString();
+
+      let maxScore = -1;
+      let leaders = [];
+      const teamNames = {
+        team1: 'ทีม 1', team2: 'ทีม 2', team3: 'ทีม 3', team4: 'ทีม 4', team5: 'ทีม 5'
+      };
+
+      for (let i = 1; i <= 5; i++) {
+        const key = `team${i}`;
+        const score = data[key] || 0;
+        if (score > maxScore && score > 0) {
+          maxScore = score;
+          leaders = [teamNames[key]];
+        } else if (score === maxScore && score > 0) {
+          leaders.push(teamNames[key]);
+        }
+      }
+
+      const leaderStat = document.getElementById('stat-leader-name');
+      if (leaderStat) {
+        if (leaders.length === 0) {
+          leaderStat.innerText = 'ยังไม่มีคะแนน';
+          leaderStat.className = "text-2xl font-black text-slate-500 font-heading";
+        } else if (leaders.length === 1) {
+          leaderStat.innerText = leaders[0];
+          leaderStat.className = "text-2xl font-black text-amber-400 font-heading";
+        } else {
+          leaderStat.innerText = `${leaders.join(', ')} (เสมอ)`;
+          leaderStat.className = "text-xl font-black text-amber-300 font-heading";
+        }
+      }
+
+      for (let i = 1; i <= 5; i++) {
+        const key = `team${i}`;
+        const count = data[key] || 0;
+        const percent = totalVotes > 0 ? ((count / totalVotes) * 100).toFixed(1) : 0;
+
+        const countEl = document.getElementById(`count-${key}`);
+        const percentEl = document.getElementById(`percent-${key}`);
+        const barEl = document.getElementById(`bar-${key}`);
+        const rankBadge = document.getElementById(`rank-badge-${key}`);
+
+        if (countEl) countEl.innerText = count;
+        if (percentEl) percentEl.innerText = percent;
+        if (barEl) barEl.style.width = `${percent}%`;
+
+        if (rankBadge) {
+          if (count === maxScore && maxScore > 0) {
+            rankBadge.classList.remove('hidden');
+          } else {
+            rankBadge.classList.add('hidden');
+          }
+        }
+      }
+    }
+
+    function checkExistingVote() {
+      const votedTeam = localStorage.getItem('voted_team');
+      if (votedTeam) {
+        updateVotedUI(votedTeam);
+      }
+    }
+
+    function updateVotedUI(teamKey) {
+      const teamNames = { team1: 'ทีม 1', team2: 'ทีม 2', team3: 'ทีม 3', team4: 'ทีม 4', team5: 'ทีม 5' };
+      const banner = document.getElementById('voted-banner');
+      const teamNameSpan = document.getElementById('voted-team-name');
+      const grid = document.getElementById('voting-buttons-grid');
+
+      if (banner && teamNameSpan) {
+        teamNameSpan.innerText = teamNames[teamKey] || teamKey;
+        banner.classList.remove('hidden');
+        
+        const buttons = grid.querySelectorAll('.team-btn');
+        buttons.forEach(btn => btn.classList.add('opacity-50', 'pointer-events-none'));
+      }
+    }
+
+    function resetLocalVoteState() {
+      localStorage.removeItem('voted_team');
+      const banner = document.getElementById('voted-banner');
+      const grid = document.getElementById('voting-buttons-grid');
+      
+      if (banner) banner.classList.add('hidden');
+      if (grid) {
+        const buttons = grid.querySelectorAll('.team-btn');
+        buttons.forEach(btn => btn.classList.remove('opacity-50', 'pointer-events-none'));
+      }
+      showToast('คืนสิทธิ์ลงคะแนนสำหรับอุปกรณ์นี้เรียบร้อย', 'info');
+    }
+
+    // Modal Control Functions
+    function openResetModal() {
+      const modal = document.getElementById('reset-modal');
+      const box = document.getElementById('reset-modal-box');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      box.classList.remove('scale-95');
+      box.classList.add('scale-100');
+    }
+
+    function closeResetModal() {
+      const modal = document.getElementById('reset-modal');
+      const box = document.getElementById('reset-modal-box');
+      box.classList.remove('scale-100');
+      box.classList.add('scale-95');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    let qrGenerated = false;
+    function openQRModal() {
+      const modal = document.getElementById('qr-modal');
+      const box = document.getElementById('qr-modal-box');
+      const qrContainer = document.getElementById('qrcode-container');
+      const studentUrlText = document.getElementById('student-url-text');
+
+      const studentUrl = window.location.href.split('#')[0] + '#student';
+      studentUrlText.innerText = studentUrl;
+
+      if (!qrGenerated) {
+        qrContainer.innerHTML = '';
+        new QRCode(qrContainer, {
+          text: studentUrl,
+          width: 180,
+          height: 180,
+          colorDark : "#0f172a",
+          colorLight : "#ffffff",
+          correctLevel : QRCode.CorrectLevel.H
+        });
+        qrGenerated = true;
+      }
+
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      box.classList.remove('scale-95');
+      box.classList.add('scale-100');
+    }
+
+    function closeQRModal() {
+      const modal = document.getElementById('qr-modal');
+      const box = document.getElementById('qr-modal-box');
+      box.classList.remove('scale-100');
+      box.classList.add('scale-95');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    // Fallback Clipboard helper per instructions
+    function copyStudentURL() {
+      const studentUrl = window.location.href.split('#')[0] + '#student';
+      const tempInput = document.createElement('input');
+      tempInput.value = studentUrl;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      showToast('คัดลอกลิงก์จอนักเรียนแล้ว!', 'success');
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const icons = { success: 'check-circle-2', warning: 'alert-circle', info: 'info' };
+      const bgColors = {
+        success: 'bg-emerald-900/90 border-emerald-500/40 text-emerald-200',
+        warning: 'bg-amber-900/90 border-amber-500/40 text-amber-200',
+        info: 'bg-indigo-900/90 border-indigo-500/40 text-indigo-200'
+      };
+
+      toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl border shadow-xl backdrop-blur-md text-sm font-medium transform transition-all duration-300 translate-y-5 opacity-0 ${bgColors[type] || bgColors.info}`;
+      toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-5 h-5 flex-shrink-0"></i><span>${message}</span>`;
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-5', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-5', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
